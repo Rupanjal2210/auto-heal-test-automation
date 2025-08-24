@@ -1,0 +1,96 @@
+# Multi-Platform Auto-Healing Framework Configuration
+
+# General healing settings
+healing:
+  enabled: true
+  maxAttempts: 3
+  timeout: 30000  # 30 seconds
+  screenshotOnFailure: true
+  screenshotsDir: "screenshots"
+  imageMatchThreshold: 0.8
+  enabledStrategies:
+    - "DOM_ANALYSIS"
+    - "ATTRIBUTE_MATCHING" 
+    - "IMAGE_RECOGNITION"
+    - "TEXT_MATCHING"
+
+# Platform-specific configurations
+platforms:
+  web:
+    waitTimeout: 10000
+    implicitWait: 5000
+    pageLoadTimeout: 30000
+    enableJavaScript: true
+    browserSettings:
+      headless: false
+      maximized: true
+    
+  windows:
+    waitTimeout: 15000
+    enableAccessibility: true
+    captureMethod: "SCREENSHOT"
+    uiAutomationSettings:
+      treatAsComDialog: true
+      useNativeEvents: true
+    
+  applet:
+    waitTimeout: 20000
+    useImageRecognition: true
+    javaVersion: "11"
+    jvmSettings:
+      maxMemory: "1024m"
+      securityLevel: "medium"
+    
+  mainframe:
+    waitTimeout: 25000
+    terminalType: "3270"
+    enableScreenScraping: true
+    connectionSettings:
+      codePage: "cp037"
+      screenSize: "24x80"
+
+# Strategy-specific settings
+strategies:
+  dom:
+    maxDepth: 5
+    attributeWeights:
+      id: 10
+      name: 8
+      class: 6
+      tag: 4
+    enableShadowDom: true
+    
+  attribute:
+    similarityThreshold: 0.7
+    weightedMatching: true
+    ignoreAttributes:
+      - "style"
+      - "data-testid"
+    
+  image:
+    matchThreshold: 0.8
+    maxScale: 1.5
+    enableMultiScale: true
+    templateStorage: "templates"
+    
+  text:
+    similarity: 0.7
+    caseSensitive: false
+    enableFuzzyMatching: true
+
+# Reporting settings
+reporting:
+  enabled: true
+  outputDir: "reports"
+  generateOnFailure: true
+  includeScreenshots: true
+  formats:
+    - "json"
+    - "html"
+  
+# Logging settings
+logging:
+  level: "INFO"
+  file: "auto-healing.log"
+  maxFileSize: "10MB"
+  maxBackupIndex: 5
