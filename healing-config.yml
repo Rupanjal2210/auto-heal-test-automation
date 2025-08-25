@@ -1,0 +1,128 @@
+# Auto-Healing Framework Configuration
+# This configuration file defines the behavior and settings for the auto-healing framework
+
+# Global healing settings
+healing:
+  enabled: true
+  maxAttempts: 3
+  timeoutMs: 5000
+  retryDelayMs: 1000
+
+# Platform-specific configurations
+platforms:
+  web:
+    enabled: true
+    priority: 1
+    strategies:
+      - dom
+      - attribute
+      - css
+      - xpath
+    timeoutMs: 3000
+    
+  windows:
+    enabled: true
+    priority: 2
+    strategies:
+      - automation-id
+      - name
+      - class-name
+      - image-recognition
+    timeoutMs: 5000
+    
+  applet:
+    enabled: true
+    priority: 3
+    strategies:
+      - component-name
+      - bounds
+      - image-recognition
+    timeoutMs: 7000
+    
+  mainframe:
+    enabled: true
+    priority: 4
+    strategies:
+      - position
+      - text-pattern
+      - image-recognition
+    timeoutMs: 10000
+
+# Strategy-specific configurations
+strategies:
+  dom:
+    enabled: true
+    priority: 1
+    similarity-threshold: 0.8
+    
+  attribute:
+    enabled: true
+    priority: 2
+    similarity-threshold: 0.75
+    
+  css:
+    enabled: true
+    priority: 3
+    similarity-threshold: 0.8
+    
+  xpath:
+    enabled: true
+    priority: 4
+    similarity-threshold: 0.7
+    
+  automation-id:
+    enabled: true
+    priority: 1
+    
+  name:
+    enabled: true
+    priority: 2
+    
+  class-name:
+    enabled: true
+    priority: 3
+    
+  component-name:
+    enabled: true
+    priority: 1
+    
+  bounds:
+    enabled: true
+    priority: 2
+    tolerance-pixels: 5
+    
+  position:
+    enabled: true
+    priority: 1
+    
+  text-pattern:
+    enabled: true
+    priority: 2
+    fuzzy-match: true
+    
+  image-recognition:
+    enabled: true
+    priority: 5
+    match-threshold: 0.8
+    template-cache-size: 100
+
+# Reporting and logging
+reporting:
+  enabled: true
+  detailed-logging: true
+  save-screenshots: true
+  screenshot-directory: "screenshots"
+  report-directory: "healing-reports"
+  
+# Performance settings
+performance:
+  cache-enabled: true
+  cache-size: 1000
+  cache-ttl-minutes: 30
+  parallel-healing: false
+  
+# Test environment specific settings
+test:
+  mock-mode: false
+  debug-mode: true
+  validate-healing: true

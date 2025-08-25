@@ -1,0 +1,31 @@
+{
+  "description": "Stores successfully healed locators for future reference",
+  "version": "1.0",
+  "lastUpdated": "2025-08-25T21:00:00Z",
+  "successfulLocators": {
+    "web": {
+      "loginButton": "css=#login-btn",
+      "usernameField": "id=username",
+      "passwordField": "name=password"
+    },
+    "windows": {
+      "okButton": "automationId=OkButton",
+      "cancelButton": "name=Cancel",
+      "textBox": "className=TextBox"
+    },
+    "applet": {
+      "submitButton": "componentName=SubmitButton",
+      "inputField": "bounds=100,200,300,30"
+    },
+    "mainframe": {
+      "menuOption": "position=10,5",
+      "dataField": "textPattern=Enter data:"
+    }
+  },
+  "healingStatistics": {
+    "totalHealingAttempts": 0,
+    "successfulHealings": 0,
+    "failedHealings": 0,
+    "averageHealingTime": 0
+  }
+}

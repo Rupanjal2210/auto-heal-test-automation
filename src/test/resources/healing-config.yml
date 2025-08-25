@@ -1,0 +1,59 @@
+# Auto-Healing Framework Test Configuration
+# This configuration file is used during unit testing
+
+# Global healing settings for testing
+healing:
+  enabled: true
+  maxAttempts: 2
+  timeoutMs: 1000
+  retryDelayMs: 100
+
+# Platform-specific configurations for testing
+platforms:
+  test:
+    enabled: true
+    priority: 1
+    strategies:
+      - mock-strategy
+    timeoutMs: 500
+    
+  web:
+    enabled: true
+    priority: 1
+    strategies:
+      - dom
+      - attribute
+    timeoutMs: 1000
+
+# Strategy-specific configurations for testing
+strategies:
+  mock-strategy:
+    enabled: true
+    priority: 1
+    
+  dom:
+    enabled: true
+    priority: 1
+    similarity-threshold: 0.8
+    
+  attribute:
+    enabled: true
+    priority: 2
+    similarity-threshold: 0.75
+
+# Reporting and logging for testing
+reporting:
+  enabled: false
+  detailed-logging: false
+  save-screenshots: false
+  
+# Performance settings for testing
+performance:
+  cache-enabled: false
+  parallel-healing: false
+  
+# Test environment specific settings
+test:
+  mock-mode: true
+  debug-mode: true
+  validate-healing: false
