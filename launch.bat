@@ -61,12 +61,13 @@ exit /b 1
 echo Usage: %0 [OPTIONS]
 echo.
 echo Options:
-echo   -m, --mode MODE        Run mode: demo, test, server (default: demo)
+echo   -m, --mode MODE        Run mode: demo, transparent, test, server (default: demo)
 echo   -c, --config FILE      Configuration file path (default: src/main/resources/healing-config.yml)
 echo   -p, --platform TYPE    Platform to test: web, windows, applet, mainframe, all (default: all)
 echo   -h, --help             Show this help message
 echo.
 echo Examples:
+echo   %0 --mode transparent
 echo   %0 --mode demo --platform web
 echo   %0 --mode test --config custom-config.yml
 exit /b 0
@@ -91,6 +92,9 @@ REM Launch based on mode
 if "%MODE%"=="demo" (
     echo Running demo mode...
     mvn exec:java -Dexec.mainClass="com.autohealing.AutoHealingFramework" -Dexec.args="demo"
+) else if "%MODE%"=="transparent" (
+    echo Running transparent healing demo...
+    mvn exec:java -Dexec.mainClass="com.autohealing.demo.TransparentHealingDemo"
 ) else if "%MODE%"=="test" (
     echo Running tests...
     mvn test
@@ -99,7 +103,7 @@ if "%MODE%"=="demo" (
     echo Server mode will be available in future versions
 ) else (
     echo Unknown mode: %MODE%
-    echo Available modes: demo, test, server
+    echo Available modes: demo, transparent, test, server
     exit /b 1
 )
 

@@ -1,0 +1,18 @@
+{
+  "description": "Test successful locators for unit testing",
+  "version": "1.0",
+  "lastUpdated": "2025-08-25T21:00:00Z",
+  "successfulLocators": {
+    "test": {
+      "element1": "healed=locator",
+      "testButton": "id=test-button",
+      "testField": "name=test-field"
+    }
+  },
+  "healingStatistics": {
+    "totalHealingAttempts": 0,
+    "successfulHealings": 0,
+    "failedHealings": 0,
+    "averageHealingTime": 0
+  }
+}
