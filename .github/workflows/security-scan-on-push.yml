@@ -1,0 +1,50 @@
+name: Security Scan on Push
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  oss-vulnerability-scan:
+    name: OSS Vulnerability Scanner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run OSS Vulnerability Scanner agent
+        uses: github/copilot-agent-runner@v1
+        with:
+          agent: .github/agents/oss-vulnerability-scanner.agent.md
+          prompt: >
+            A push was made to branch '${{ github.ref_name }}' by '${{ github.actor }}'.
+            Scan all dependency manifests in this repository (pom.xml, package.json,
+            requirements.txt, etc.) for known CVEs and OSS vulnerabilities.
+            Generate the full vulnerability and remediation CSV reports under .github/output/.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  security-audit:
+    name: Security Auditor
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Security Auditor agent
+        uses: github/copilot-agent-runner@v1
+        with:
+          agent: .github/agents/security-auditor.agent.md
+          prompt: >
+            A push was made to branch '${{ github.ref_name }}' by '${{ github.actor }}'.
+            Audit all source code under src/ for OWASP Top 10 security vulnerabilities,
+            hardcoded credentials, injection risks, insecure configurations, and
+            authentication/authorization issues. Report all findings with severity and
+            recommended remediations.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
