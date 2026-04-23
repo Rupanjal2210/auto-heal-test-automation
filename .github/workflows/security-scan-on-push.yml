@@ -7,44 +7,76 @@ on:
 
 jobs:
   oss-vulnerability-scan:
-    name: OSS Vulnerability Scanner
+    name: OSS Vulnerability Scan (OWASP Dependency-Check)
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run OSS Vulnerability Scanner agent
-        uses: github/copilot-agent-runner@v1
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
-          agent: .github/agents/oss-vulnerability-scanner.agent.md
-          prompt: >
-            A push was made to branch '${{ github.ref_name }}' by '${{ github.actor }}'.
-            Scan all dependency manifests in this repository (pom.xml, package.json,
-            requirements.txt, etc.) for known CVEs and OSS vulnerabilities.
-            Generate the full vulnerability and remediation CSV reports under .github/output/.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'auto-heal-test-automation'
+          path: '.'
+          format: 'HTML,CSV,SARIF'
+          out: '.github/output/dependency-check'
+          args: >-
+            --enableRetired
+            --enableExperimental
+            --nvdApiKey ${{ secrets.NVD_API_KEY }}
+
+      - name: Upload Dependency-Check report as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report-${{ github.sha }}
+          path: .github/output/dependency-check/
+          retention-days: 30
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: .github/output/dependency-check/dependency-check-report.sarif
 
   security-audit:
-    name: Security Auditor
+    name: Security Audit (CodeQL)
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: write
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run Security Auditor agent
-        uses: github/copilot-agent-runner@v1
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
         with:
-          agent: .github/agents/security-auditor.agent.md
-          prompt: >
-            A push was made to branch '${{ github.ref_name }}' by '${{ github.actor }}'.
-            Audit all source code under src/ for OWASP Top 10 security vulnerabilities,
-            hardcoded credentials, injection risks, insecure configurations, and
-            authentication/authorization issues. Report all findings with severity and
-            recommended remediations.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          languages: java
+          queries: security-extended
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build project
+        run: mvn -B compile --no-transfer-progress
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:java'
