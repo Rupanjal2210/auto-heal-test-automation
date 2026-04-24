@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "type": "command",
+        "windows": "powershell -NonInteractive -NoProfile -File .github/hooks/scripts/detect-manifest-edit.ps1",
+        "linux": "bash .github/hooks/scripts/detect-manifest-edit.sh",
+        "osx": "bash .github/hooks/scripts/detect-manifest-edit.sh",
+        "timeout": 10
+      }
+    ]
+  }
+}
