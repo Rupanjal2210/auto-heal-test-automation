@@ -284,6 +284,22 @@ $Rules = @(
     }
 )
 
+# ── Pre-compile regex patterns and group rules by language ────────────────────
+# Compiled regexes are reused across every file — avoids JIT overhead per Select-String call.
+$regexOpts = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor `
+             [System.Text.RegularExpressions.RegexOptions]::Compiled
+$rulesByLang = @{
+    COBOL = [System.Collections.Generic.List[hashtable]]::new()
+    JCL   = [System.Collections.Generic.List[hashtable]]::new()
+    ASM   = [System.Collections.Generic.List[hashtable]]::new()
+    BMS   = [System.Collections.Generic.List[hashtable]]::new()
+    ANY   = [System.Collections.Generic.List[hashtable]]::new()
+}
+foreach ($rule in $Rules) {
+    $rule['_Regex'] = [System.Text.RegularExpressions.Regex]::new($rule.Pattern, $regexOpts)
+    if ($rulesByLang.ContainsKey($rule.Language)) { $rulesByLang[$rule.Language].Add($rule) }
+}
+
 # ── Helper: language detection by extension ────────────────────────────────────
 function Get-Language([string]$ext) {
     switch ($ext.ToLower()) {
@@ -308,11 +324,12 @@ function ConvertTo-CsvField([string]$value) {
 # ── Discover files ─────────────────────────────────────────────────────────────
 Write-Host "[SCAN] Target directory : $TargetDir"
 
-$allFiles = @()
-foreach ($ext in $MF_EXTENSIONS) {
-    $found = Get-ChildItem -LiteralPath $TargetDir -Filter $ext -Recurse -File -ErrorAction SilentlyContinue
-    $allFiles += $found
-}
+# Single-pass discovery — avoids 8 separate Get-ChildItem calls and O(n²) array growth
+$extSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+'.cbl','.cpy','.cob','.jcl','.proc','.asm','.bms','.map' | ForEach-Object { [void]$extSet.Add($_) }
+
+$allFiles = Get-ChildItem -LiteralPath $TargetDir -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $extSet.Contains($_.Extension) }
 
 $fileCount = $allFiles.Count
 Write-Host "[SCAN] Files found      : $fileCount mainframe files"
@@ -329,40 +346,47 @@ if ($fileCount -eq 0) {
 Write-Host "[SCAN] Rules applied    : $($Rules.Count)"
 
 # ── Run scan ───────────────────────────────────────────────────────────────────
+# Each file is read once; compiled regexes are applied in-memory instead of
+# calling Select-String (which re-opens the file) once per rule.
 $findings = [System.Collections.Generic.List[hashtable]]::new()
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
 
 foreach ($file in $allFiles) {
     $fileLang = Get-Language $file.Extension
-    $relPath  = $file.FullName.Replace($TargetDir, '').TrimStart('\','/')
+    $relPath  = $file.FullName.Substring($TargetDir.Length).TrimStart([char]'\', [char]'/')
 
-    foreach ($rule in $Rules) {
-        # Skip language-specific rules that don't match this file's language
-        if ($rule.Language -ne 'ANY' -and $rule.Language -ne $fileLang) {
-            continue
+    # Build applicable rule list for this language — skips irrelevant rules per file
+    $applicable = [System.Collections.Generic.List[hashtable]]::new()
+    if ($rulesByLang.ContainsKey($fileLang)) { $applicable.AddRange($rulesByLang[$fileLang]) }
+    if ($rulesByLang['ANY'].Count -gt 0)     { $applicable.AddRange($rulesByLang['ANY']) }
+    if ($applicable.Count -eq 0) { continue }
+
+    # Read file once — was N_rules I/O reads per file, now 1
+    try {
+        $lines = [System.IO.File]::ReadAllLines($file.FullName)
+    } catch {
+        Write-Warning "[SCAN] Cannot read '$relPath': $_"
+        continue
+    }
+
+    for ($lineIdx = 0; $lineIdx -lt $lines.Length; $lineIdx++) {
+        $rawLine = $lines[$lineIdx]
+
+        # Skip COBOL fixed-format comment lines (column 7 = '*' or '/')
+        if ($fileLang -eq 'COBOL' -and $rawLine.Length -ge 7) {
+            $col7 = $rawLine[6]
+            if ($col7 -eq '*' -or $col7 -eq '/') { continue }
         }
 
-        $matches = Select-String -LiteralPath $file.FullName `
-                                 -Pattern $rule.Pattern `
-                                 -CaseSensitive:$false `
-                                 -ErrorAction SilentlyContinue
+        foreach ($rule in $applicable) {
+            if (-not $rule['_Regex'].IsMatch($rawLine)) { continue }
 
-        if ($null -eq $matches) { continue }
-
-        foreach ($m in $matches) {
-            # Skip commented-out COBOL lines (column 7 = '*' or '/' is a comment)
-            $rawLine = $m.Line
-            if ($fileLang -eq 'COBOL' -and $rawLine.Length -ge 7) {
-                $col7 = $rawLine[6]
-                if ($col7 -eq '*' -or $col7 -eq '/') { continue }
-            }
-
-            # Truncate snippet for CSV safety (max 120 chars)
             $snippet = $rawLine.Trim()
             if ($snippet.Length -gt 120) { $snippet = $snippet.Substring(0, 117) + '...' }
 
             $findings.Add(@{
                 File             = $relPath
-                Line             = $m.LineNumber
+                Line             = $lineIdx + 1
                 Severity         = $rule.Severity
                 SeverityLabel    = $rule.SeverityLabel
                 CWE              = $rule.CWE
@@ -377,31 +401,34 @@ foreach ($file in $allFiles) {
     }
 }
 
+$sw.Stop()
 $totalFindings = $findings.Count
 Write-Host "[SCAN] Findings total   : $totalFindings"
+Write-Host "[SCAN] Scan elapsed     : $($sw.Elapsed.TotalSeconds.ToString('F1'))s"
 
 # ── Write CSV ──────────────────────────────────────────────────────────────────
-$csvLines = [System.Collections.Generic.List[string]]::new()
-$csvLines.Add("File,Line,Severity,SeverityLabel,CWE,Category,Language,Description,CodeSnippet,Remediation,FalsePositiveRisk")
-
-foreach ($f in $findings) {
-    $row = @(
-        (ConvertTo-CsvField $f.File),
-        $f.Line,
-        $f.Severity,
-        (ConvertTo-CsvField $f.SeverityLabel),
-        (ConvertTo-CsvField $f.CWE),
-        (ConvertTo-CsvField $f.Category),
-        (ConvertTo-CsvField $f.Language),
-        (ConvertTo-CsvField $f.Description),
-        (ConvertTo-CsvField $f.CodeSnippet),
-        (ConvertTo-CsvField $f.Remediation),
-        (ConvertTo-CsvField $f.FalsePositiveRisk)
-    ) -join ","
-    $csvLines.Add($row)
+# StreamWriter writes rows directly to disk — avoids buffering the entire CSV in memory.
+$writer = [System.IO.StreamWriter]::new($OutFile, $false, [System.Text.Encoding]::UTF8)
+try {
+    $writer.WriteLine("File,Line,Severity,SeverityLabel,CWE,Category,Language,Description,CodeSnippet,Remediation,FalsePositiveRisk")
+    foreach ($f in $findings) {
+        $writer.WriteLine((@(
+            (ConvertTo-CsvField $f.File),
+            $f.Line,
+            $f.Severity,
+            (ConvertTo-CsvField $f.SeverityLabel),
+            (ConvertTo-CsvField $f.CWE),
+            (ConvertTo-CsvField $f.Category),
+            (ConvertTo-CsvField $f.Language),
+            (ConvertTo-CsvField $f.Description),
+            (ConvertTo-CsvField $f.CodeSnippet),
+            (ConvertTo-CsvField $f.Remediation),
+            (ConvertTo-CsvField $f.FalsePositiveRisk)
+        ) -join ","))
+    }
+} finally {
+    $writer.Close()
 }
-
-$csvLines | Out-File -FilePath $OutFile -Encoding utf8 -Force
 
 Write-Host "[SCAN] Report written   : $OutFile"
 Write-Host "[SCAN] Done."
